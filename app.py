@@ -69,18 +69,19 @@ class StgkStarterApp(Application):
 		selectedObjects = cmds.ls(selection = True)
 		print selectedObjects
 		originalSelection = []
-		# errorMessages = {}
+		errors = {}
 		for s in selectedObjects:
 			originalSelection.append(s)
-			# errorMessages[s] = {}
+			errors[s] = []
 			
 		for s in selectedObjects:
 			references = None
+			
 			try:
 				references = self.switcher.getChildrenObjRefence(s)
 			except:
 				print "ERROR in finding references!!!"
-				
+				errors[s].append("ERROR in finding references")
 			if len(references) > 1:
 				print "!!!   MORE THAN ONE REFERENCE FOUND IN OBJECT %s   !!!" %(s)
 				# print "!!!            Check what to do           !!!"
@@ -92,31 +93,30 @@ class StgkStarterApp(Application):
 						
 			node = None
 			for r in references:
-				print r
 				node = r
-						
+				
 				currentPath = pm.system.FileReference(node)
 				currentPath = str(currentPath)
 				if currentPath.endswith("}") and currentPath.find("{") != -1:
 					currentPath = currentPath[ :currentPath.find("{")]
 				fields = assetPublishTemplate.get_fields(str(currentPath))
-				print fields
-				currentResolution = fields['Resolution']
+				currentResolution = None
+				if "Resolution" in fields:
+					currentResolution = fields['Resolution']
+					if currentResolution == self.resolutionShort:
+						continue
+						
 				fields['Resolution'] = self.resolutionShort
-				
-				if currentResolution == self.resolutionShort:
-					continue
 				
 				all_versions = self.tank.paths_from_template(assetPublishTemplate, fields, skip_keys=["version"])
 				# now look for the highest version number...
 				
 				if len(all_versions) == 0:
-					print "### No %s resolution found for %s. Leaving original." %(self.resolution, s)
+					errors[s].append("No %s resolution found for %s." %(self.resolution, s))
 					continue
 				
 				latest_version = 0
 				for ver in all_versions:
-					# print ver
 					fields = assetPublishTemplate.get_fields(ver)
 					if fields["version"] > latest_version:
 						latest_version = fields["version"]
@@ -130,4 +130,16 @@ class StgkStarterApp(Application):
 					rn.replaceWith(new_path)
 				
 		cmds.select(originalSelection)
+		
+		errorMessages = ""
+		for e in errors:
+			if errors[e] == []:
+				continue
+			errorMessages += ("###   %s   ###\n" %e)
+			for line in errors[e]:
+				errorMessages += ("- %s\n" %line)
+			errorMessages += "\n"
+		
+		if errorMessages != "":
+			cmds.confirmDialog( t = "Error window", message = errorMessages, button = ["OK"])
 		
