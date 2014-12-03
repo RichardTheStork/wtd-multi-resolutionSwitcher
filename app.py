@@ -51,6 +51,111 @@ class StgkStarterApp(Application):
 		self.switcher = self.import_module("app").switcher
 		self.engine.register_command("Switch to %s" %self.resolution, self.change_ref_resolution)
 		
+		if self.resolution == "Lay":
+			self.engine.register_command("Replace by reference.", self.replace_by_reference)
+		# print dir(self)
+		# print dir(self.engine)
+
+		
+	def getAssetName(self, inputName):
+		tempName = None
+		if inputName.find("_") != inputName.rfind("_"):
+			tempName = inputName[ inputName.find("_")+1: inputName.rfind("_")]
+		else:
+			print inputName
+			
+		print dir(self)
+		
+		asset = self.shotgun.find_one('Asset', [['code','is', tempName ]], ['code'])
+		print asset		
+		return tempName, asset
+		
+	def getAssetReferencePublishPath(self, asset, step = None, resolution = None):
+		assetPublishTemplate = self.get_template_by_name("maya_asset_publish")
+		fields = {'Step': step, 'sg_asset_type': 'Prop', 'Asset': asset}
+		resolutionOptions = []
+		if resolution == None:
+			resolutionOptions.append(None)
+			resolutionOptions.append("lay")
+			resolutionOptions.append("lor")
+			resolutionOptions.append("hir")
+		else:
+			resolutionOptions.append(resolution)
+		print resolutionOptions
+		
+		for res in resolutionOptions:
+			if res != None:
+				fields["Resolution"] = res
+			print fields
+			versionPath = self.searchLatestVersions(assetPublishTemplate, fields)
+			if versionPath != 0:
+				return versionPath
+		return None
+		
+	def searchLatestVersions(self, assetPublishTemplate, fields):
+		# print "Start search for versions..."
+		# print assetPublishTemplate
+		# print fields
+		all_versions = self.tank.paths_from_template(assetPublishTemplate, fields, skip_keys=["version"])
+						
+		latest_version = 0
+		if len(all_versions) == 0:
+			# errors[s]["NoResFound"]=("No %s resolution found for %s." %(self.resolution, s))
+			return latest_version
+		
+		for ver in all_versions:
+			fields = assetPublishTemplate.get_fields(ver)
+			if fields["version"] > latest_version:
+				latest_version = fields["version"]
+		
+		latest_path = assetPublishTemplate.apply_fields(fields)		
+		return latest_path
+		
+	def replace_by_reference(self):
+		tempSel = cmds.ls(selection  = True)
+		
+		for s in tempSel:
+			print "#"*5, s
+			
+			if s.startswith("PRP_"):
+				if not self.switcher.checkIfLocator(s):
+					print "### Skipping selection : %s ; type is %s"%(s, cmds.objectType(s))
+					continue
+					
+				## 0. get assetname
+				assetName, asset = self.getAssetName(s)
+				# print assetName
+				references = self.switcher.getChildrenObjRefence(s)
+				# print 'Go on with this...'
+				# print len(references)
+				if len(references) == 0:
+					# print "We should try to load a referenced file here... and first delete stuff inside this locator..."
+					print "1. import reference"
+					path = self.getAssetReferencePublishPath(assetName, step = "mod")
+					if path == None:
+						continue
+					print "2. erase all content..."
+					self.switcher.eraseLocatorContent(s)
+					if cmds.namespaceInfo(cur=True) != ":":
+						cmds.namespace( setNamespace=":")
+					ns = str.split(str(s),"_",1)[-1]
+					referencedFile = cmds.file(path, reference = True,namespace=ns)
+					print "3. parent and move to locator"
+					cmds.namespace( setNamespace=ns )
+					nsContent = cmds.namespaceInfo(listNamespace=True)
+					child = ""#cmds.listRelatives()
+					for obj in nsContent:
+						if cmds.objectType(obj) == "transform":
+							if cmds.listRelatives(obj,parent=True) == None:
+								child = obj
+					parent = s
+					cmds.parent(child, parent, relative = True)
+					
+			else:
+				print "### Skipping selection : %s ; Doesn't start with 'PRP_'"%(s)
+			
+		print "DONE..."
+		
 		
 	def change_ref_resolution(self):
 		print "resolution changing to %s" %self.resolution
@@ -72,7 +177,7 @@ class StgkStarterApp(Application):
 		errors = {}
 		for s in selectedObjects:
 			originalSelection.append(s)
-			errors[s] = []
+			errors[s] = {}
 			
 		for s in selectedObjects:
 			references = None
@@ -81,7 +186,7 @@ class StgkStarterApp(Application):
 				references = self.switcher.getChildrenObjRefence(s)
 			except:
 				print "ERROR in finding references!!!"
-				errors[s].append("ERROR in finding references")
+				errors[s]["refError"]=("ERROR in finding references")
 			if len(references) > 1:
 				print "!!!   MORE THAN ONE REFERENCE FOUND IN OBJECT %s   !!!" %(s)
 				# print "!!!            Check what to do           !!!"
@@ -90,6 +195,8 @@ class StgkStarterApp(Application):
 				# for c in children:
 					# if c.find('PRP_') != -1 and cmds.objectType(c) == 'locator':
 						# print 'should rerun this script on %s' %c
+			elif len(references) == 0:
+				errors[s]["noRefs"]=("No references found for this object.")
 						
 			node = None
 			for r in references:
@@ -107,12 +214,12 @@ class StgkStarterApp(Application):
 						continue
 						
 				fields['Resolution'] = self.resolutionShort
-				
+				print fields
 				all_versions = self.tank.paths_from_template(assetPublishTemplate, fields, skip_keys=["version"])
 				# now look for the highest version number...
 				
 				if len(all_versions) == 0:
-					errors[s].append("No %s resolution found for %s." %(self.resolution, s))
+					errors[s]["NoResFound"]=("No %s resolution found for %s." %(self.resolution, s))
 					continue
 				
 				latest_version = 0
@@ -133,11 +240,11 @@ class StgkStarterApp(Application):
 		
 		errorMessages = ""
 		for e in errors:
-			if errors[e] == []:
+			if errors[e] == {}:
 				continue
 			errorMessages += ("###   %s   ###\n" %e)
 			for line in errors[e]:
-				errorMessages += ("- %s\n" %line)
+				errorMessages += ("- %s\n" %errors[e][line])
 			errorMessages += "\n"
 		
 		if errorMessages != "":

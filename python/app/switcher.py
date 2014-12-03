@@ -20,10 +20,14 @@ def getChildrenObjRefence(obj):
 	# references = pm.listReferences()
 	# print references
 	
-	children = cmds.listRelatives(obj,ad=True,type='transform',fullPath=True)
 	refList = []
+	children = cmds.listRelatives(obj,ad=True,type='transform',fullPath=True)
+	print children
+	if children == None or children == []:
+		print 'No children found'
+		return refList
 	for child in children:
-		print "CHILD IS = ", child, 'from', obj
+		# print "CHILD IS = ", child, 'from', obj
 		if ":" in child:
 			print child
 			obj = str.split(str(child),"|")[-1]
@@ -38,3 +42,60 @@ def getChildrenObjRefence(obj):
 			refList += [str(curRef)]
 	return refList
 	
+def checkIfLocator(obj):
+	shape = cmds.listRelatives(obj,shapes=True,fullPath=True)
+	if shape!=None:
+		if cmds.objectType(shape) == "locator":
+			return True
+	return False
+	
+def eraseLocatorContent(obj):
+    tempRels = cmds.listRelatives(obj, f = True)
+    
+    for r in tempRels:
+        print r
+        print cmds.objectType(r)
+        if cmds.objectType(r) != 'locator':
+            print "DELETING %s" %r
+            #cmds.select(r, add = True)
+            cmds.delete(r)
+
+			
+			
+			
+"""
+
+	
+import maya.cmds as cmds
+
+def checkIfLocator(obj):
+	shape = cmds.listRelatives(obj,shapes=True,fullPath=True)
+	if shape!=None:
+		if cmds.objectType(shape) == "locator":
+			return True
+	return False
+	
+def eraseContent(obj):
+    tempRels = cmds.listRelatives(obj, f = True)
+    
+    for r in tempRels:
+        if cmds.objectType(r) != 'locator':
+            cmds.delete(r)
+    
+def loadReference(name, path):
+    print name, path
+    
+
+
+
+selection = cmds.ls(selection = True)
+cmds.select(clear = True)
+for s in selection:
+    if checkIfLocator(s):
+        print 'ok', s
+        eraseContent(s)        
+cmds.select(selection)
+
+
+
+"""
