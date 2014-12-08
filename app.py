@@ -58,17 +58,17 @@ class StgkStarterApp(Application):
 
 		
 	def getAssetName(self, inputName):
-		print "INPUTNAME = ", inputName
+		# print "INPUTNAME = ", inputName
 		tempName = None
 		if inputName.find("_") != inputName.rfind("_"):
 			tempName = inputName[ : inputName.rfind("_")]
 			tempName = tempName[ tempName.rfind("_")+1 : ]
 		else:
 			tempName = inputName[ inputName.rfind("_")+1 : ]
-			print inputName
+			# print inputName
 			
 		# print dir(self)
-		print "TEMPNAME to search in shotgun = ", tempName
+		# print "TEMPNAME to search in shotgun = ", tempName
 		asset = self.shotgun.find_one('Asset', [['code','is', tempName ]], ['code'])
 		print asset		
 		return tempName, asset
@@ -84,12 +84,12 @@ class StgkStarterApp(Application):
 			resolutionOptions.append("hir")
 		else:
 			resolutionOptions.append(resolution)
-		print resolutionOptions
+		# print resolutionOptions
 		
 		for res in resolutionOptions:
 			if res != None:
 				fields["Resolution"] = res
-			print fields
+			# print fields
 			versionPath = self.searchLatestVersions(assetPublishTemplate, fields)
 			if versionPath != 0:
 				return versionPath
@@ -100,7 +100,7 @@ class StgkStarterApp(Application):
 		# print assetPublishTemplate
 		# print fields
 		all_versions = self.tank.paths_from_template(assetPublishTemplate, fields, skip_keys=["version"])
-						
+		
 		latest_version = 0
 		if len(all_versions) == 0:
 			# errors[s]["NoResFound"]=("No %s resolution found for %s." %(self.resolution, s))
@@ -114,38 +114,44 @@ class StgkStarterApp(Application):
 		latest_path = assetPublishTemplate.apply_fields(fields)		
 		return latest_path
 		
-	def replace_by_reference(self):
+	def replace_by_reference(self, resolution = "lay"):
 		tempSel = cmds.ls(selection  = True)
 		errors = {}
 		originalSelection = []
+		loadedReferences = {}
+		
 		for s in tempSel:
 			originalSelection.append(s)
-			errors[s] = {}
 		for s in tempSel:
 			print "#"*5, s
+			errors[s] = {}
 			
-			if s.startswith("PRP_"):
+			if s.startswith("PRP_") or s[ s.rfind(":")+1: ].startswith("PRP_") or s[ s.rfind("|")+1: ].startswith("PRP_"):
 				if not self.switcher.checkIfLocator(s):
 					print "### Skipping selection : %s ; type is %s"%(s, cmds.objectType(s))
 					continue
 					
 				## 0. get assetname
 				assetName, asset = self.getAssetName(s)
+				errors[assetName] = {}
 				
 				if asset == None:
-					errors[s]["noAsset"]=("No asset with name %s found in shotgun." %assetName)
+					errors[assetName]["noAsset"]=("No asset with name %s found in shotgun for %s." %(assetName, s))
 					continue
 				references = self.switcher.getChildrenObjRefence(s)
 				if len(references) == 0:
 					print "1. import reference"
-					path = self.getAssetReferencePublishPath(assetName, step = "mod")
+					path = self.getAssetReferencePublishPath(assetName, step = "mod", resolution = resolution)
+					print path
 					if path == None:
+						errors[assetName]["noPath"]=("No path found for asset with name %s." %(assetName))
 						continue
 					print "2. erase all content..."
 					self.switcher.eraseLocatorContent(s)
 					if cmds.namespaceInfo(cur=True) != ":":
 						cmds.namespace( setNamespace=":")
-					ns = str.split(str(s),"_",1)[-1]
+					assetNumber = str.split(str(s),assetName,1)[-1]
+					ns = assetName + assetNumber
 					referencedFile = cmds.file(path, reference = True,namespace=ns)
 					print "3. parent and move to locator"
 					cmds.namespace( setNamespace=ns )
@@ -157,9 +163,11 @@ class StgkStarterApp(Application):
 								child = obj
 					parent = s
 					cmds.parent(child, parent, relative = True)
+					print "4. Succes!"
 					
 			else:
 				print "### Skipping selection : %s ; Doesn't start with 'PRP_'"%(s)
+				errors[s]["nameError"]=("Object %s doesn't start with 'PRP_'" %(s))
 			
 		cmds.namespace( setNamespace=":" )
 				

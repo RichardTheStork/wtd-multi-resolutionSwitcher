@@ -3,7 +3,7 @@ import pymel.core as pm
 import os
 
 def switch_resolution(selectionObj):
-	print assetName, targetResolution, reference
+	# print assetName, targetResolution, reference
 	
 	references = getChildrenObjRefence(selectionObj)
 	
@@ -12,17 +12,17 @@ def switch_resolution(selectionObj):
 	
 def getChildrenObjRefence(obj):
 	# allNamespaces = cmds.namespaceInfo( ":", listOnlyNamespaces=True )
-	print 'OBJECT IS = ', obj
+	# print 'OBJECT IS = ', obj
 	references = cmds.ls(type='reference', l = True)
-	print "REFERENCES with LS:"
-	print references
+	# print "REFERENCES with LS:"
+	# print references
 	# print "REFERENCES with pm.LISTREFS:"
 	# references = pm.listReferences()
 	# print references
 	
 	refList = []
 	children = cmds.listRelatives(obj,ad=True,type='transform',fullPath=True)
-	print children
+	# print children
 	if children == None or children == []:
 		print 'No children found'
 		return refList
@@ -53,10 +53,10 @@ def eraseLocatorContent(obj):
     tempRels = cmds.listRelatives(obj, f = True)
     
     for r in tempRels:
-        print r
-        print cmds.objectType(r)
+        # print r
+        # print cmds.objectType(r)
         if cmds.objectType(r) != 'locator':
-            print "DELETING %s" %r
+            # print "DELETING %s" %r
             #cmds.select(r, add = True)
             cmds.delete(r)
 
