@@ -58,14 +58,17 @@ class StgkStarterApp(Application):
 
 		
 	def getAssetName(self, inputName):
+		print "INPUTNAME = ", inputName
 		tempName = None
 		if inputName.find("_") != inputName.rfind("_"):
-			tempName = inputName[ inputName.find("_")+1: inputName.rfind("_")]
+			tempName = inputName[ : inputName.rfind("_")]
+			tempName = tempName[ tempName.rfind("_")+1 : ]
 		else:
+			tempName = inputName[ inputName.rfind("_")+1 : ]
 			print inputName
 			
-		print dir(self)
-		
+		# print dir(self)
+		print "TEMPNAME to search in shotgun = ", tempName
 		asset = self.shotgun.find_one('Asset', [['code','is', tempName ]], ['code'])
 		print asset		
 		return tempName, asset
@@ -113,7 +116,11 @@ class StgkStarterApp(Application):
 		
 	def replace_by_reference(self):
 		tempSel = cmds.ls(selection  = True)
-		
+		errors = {}
+		originalSelection = []
+		for s in tempSel:
+			originalSelection.append(s)
+			errors[s] = {}
 		for s in tempSel:
 			print "#"*5, s
 			
@@ -124,12 +131,12 @@ class StgkStarterApp(Application):
 					
 				## 0. get assetname
 				assetName, asset = self.getAssetName(s)
-				# print assetName
+				
+				if asset == None:
+					errors[s]["noAsset"]=("No asset with name %s found in shotgun." %assetName)
+					continue
 				references = self.switcher.getChildrenObjRefence(s)
-				# print 'Go on with this...'
-				# print len(references)
 				if len(references) == 0:
-					# print "We should try to load a referenced file here... and first delete stuff inside this locator..."
 					print "1. import reference"
 					path = self.getAssetReferencePublishPath(assetName, step = "mod")
 					if path == None:
@@ -154,8 +161,22 @@ class StgkStarterApp(Application):
 			else:
 				print "### Skipping selection : %s ; Doesn't start with 'PRP_'"%(s)
 			
-		print "DONE..."
+		cmds.namespace( setNamespace=":" )
+				
+		errorMessages = ""
+		for e in errors:
+			if errors[e] == {}:
+				continue
+			errorMessages += ("###   %s   ###\n" %e)
+			for line in errors[e]:
+				errorMessages += ("- %s\n" %errors[e][line])
+			errorMessages += "\n"
 		
+		if errorMessages != "":
+			cmds.confirmDialog( t = "Error window", message = errorMessages, button = ["OK"])		
+		
+		cmds.select(originalSelection)
+
 		
 	def change_ref_resolution(self):
 		print "resolution changing to %s" %self.resolution
