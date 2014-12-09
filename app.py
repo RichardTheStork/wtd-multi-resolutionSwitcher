@@ -53,24 +53,18 @@ class StgkStarterApp(Application):
 		
 		if self.resolution == "Lay":
 			self.engine.register_command("Replace by reference.", self.replace_by_reference)
-		# print dir(self)
-		# print dir(self.engine)
 
 		
 	def getAssetName(self, inputName):
-		# print "INPUTNAME = ", inputName
 		tempName = None
 		if inputName.find("_") != inputName.rfind("_"):
 			tempName = inputName[ : inputName.rfind("_")]
 			tempName = tempName[ tempName.rfind("_")+1 : ]
 		else:
 			tempName = inputName[ inputName.rfind("_")+1 : ]
-			# print inputName
 			
-		# print dir(self)
-		# print "TEMPNAME to search in shotgun = ", tempName
 		asset = self.shotgun.find_one('Asset', [['code','is', tempName ]], ['code'])
-		print asset		
+		print asset
 		return tempName, asset
 		
 	def getAssetReferencePublishPath(self, asset, step = None, resolution = None):
@@ -84,21 +78,16 @@ class StgkStarterApp(Application):
 			resolutionOptions.append("hir")
 		else:
 			resolutionOptions.append(resolution)
-		# print resolutionOptions
 		
 		for res in resolutionOptions:
 			if res != None:
 				fields["Resolution"] = res
-			# print fields
 			versionPath = self.searchLatestVersions(assetPublishTemplate, fields)
 			if versionPath != 0:
 				return versionPath
 		return None
 		
 	def searchLatestVersions(self, assetPublishTemplate, fields):
-		# print "Start search for versions..."
-		# print assetPublishTemplate
-		# print fields
 		all_versions = self.tank.paths_from_template(assetPublishTemplate, fields, skip_keys=["version"])
 		
 		latest_version = 0
@@ -129,14 +118,17 @@ class StgkStarterApp(Application):
 			if s.startswith("PRP_") or s[ s.rfind(":")+1: ].startswith("PRP_") or s[ s.rfind("|")+1: ].startswith("PRP_"):
 				if not self.switcher.checkIfLocator(s):
 					print "### Skipping selection : %s ; type is %s"%(s, cmds.objectType(s))
+					errors[s]["noAsset"]=("Skipping selection : %s ; type is %s"%(s, cmds.objectType(s)))
 					continue
 					
-				## 0. get assetname
 				assetName, asset = self.getAssetName(s)
 				errors[assetName] = {}
 				
 				if asset == None:
 					errors[assetName]["noAsset"]=("No asset with name %s found in shotgun for %s." %(assetName, s))
+					continue
+				elif asset['code'] != assetName:
+					errors[assetName]["wrongName"]=("Wrong name for %s.\n%s (asset)\n%s (scene)" %(s, asset['code'],assetName))
 					continue
 				references = self.switcher.getChildrenObjRefence(s)
 				if len(references) == 0:
@@ -191,10 +183,6 @@ class StgkStarterApp(Application):
 		print "Current context is = ", self.context.entity
 		print 'shortname =', self.resolutionShort
 		
-		# references = cmds.ls(type='reference')
-		# print "REFERENCES with LS:"
-		# print references
-		# print "REFERENCES with pm.LISTREFS:"
 		allRefs = pm.listReferences()
 		print allRefs		
 		
@@ -216,14 +204,9 @@ class StgkStarterApp(Application):
 			except:
 				print "ERROR in finding references!!!"
 				errors[s]["refError"]=("ERROR in finding references")
+				
 			if len(references) > 1:
 				print "!!!   MORE THAN ONE REFERENCE FOUND IN OBJECT %s   !!!" %(s)
-				# print "!!!            Check what to do           !!!"
-				# children = cmds.listRelatives(s,ad=True,type='transform',fullPath=True)
-				# print children
-				# for c in children:
-					# if c.find('PRP_') != -1 and cmds.objectType(c) == 'locator':
-						# print 'should rerun this script on %s' %c
 			elif len(references) == 0:
 				errors[s]["noRefs"]=("No references found for this object.")
 						
